@@ -11,7 +11,7 @@ import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 
 fun parseProgram(s: String, errorLine: Int = -1, errorPosition: Int = -1) {
-    val oldStderr = System.out
+    val oldStderr = System.err
     val output = ByteArrayOutputStream()
     System.setErr(PrintStream(output))
     val expLexer = ExpLexer(CharStreams.fromString(s))
@@ -27,5 +27,18 @@ fun parseProgram(s: String, errorLine: Int = -1, errorPosition: Int = -1) {
         assertEquals(errors, errorPosition, errorInfo[1].toInt())
     }
     System.setErr(oldStderr)
+}
+
+fun evalProgram(s: String, expected: String) {
+    val oldStdout = System.out
+    val output = ByteArrayOutputStream()
+    System.setOut(PrintStream(output))
+    val expLexer = ExpLexer(CharStreams.fromString(s))
+    val parser = ExpParser(BufferedTokenStream(expLexer))
+    Interpreter().visitFile(parser.file())
+    val result = output.toString()
+
+    assertThat(result, `is`(expected))
+    System.setOut(oldStdout)
 }
 

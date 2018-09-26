@@ -12,10 +12,10 @@ class TestParserWithErrors {
     }
 
     @Test
-    fun testVal() {
+    fun testVar() {
         parseProgram("var", 1, 3)
         parseProgram("var a =", 1, 7)
-        parseProgram("var a = b = c", 1, 5)
+        parseProgram("var a = b = c", 1, 10)
     }
 
     @Test
@@ -33,23 +33,7 @@ class TestParserWithErrors {
 
     @Test
     fun testAssignment() {
-
+        parseProgram("a = b = 3", 1, 6)
     }
 
-    @Test
-    fun testBinaryExpressionSimple() {
-        parseProgram("2 + 3")
-        parseProgram("2 - 3")
-        parseProgram("2 * 3")
-        parseProgram("2 / 3")
-        parseProgram("2 % 3")
-        parseProgram("2 || 3")
-        parseProgram("2 && 3")
-        parseProgram("2 == 3")
-        parseProgram("2 != 3")
-        parseProgram("2 < 3")
-        parseProgram("2 > 3")
-        parseProgram("2 <= 3")
-        parseProgram("2 >= 3")
-    }
 }

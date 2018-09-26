@@ -1,95 +1,92 @@
 package ru.hse.spb
 
+import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.TerminalNode
 import ru.hse.spb.parser.ExpBaseVisitor
 import ru.hse.spb.parser.ExpParser
 
 class Interpreter : ExpBaseVisitor<Int?>() {
+    private var varScope = Scope<Int>(null)
 
-    class Scope(outer: Scope?) {
-        var outer: Scope? = outer
-        private val current = HashMap<String, Int>()
+    // For each functionParams name storing Block to do and argument names.
+    private var funScope = Scope<Pair<ExpParser.BlockWithBracesContext, ArrayList<String>>>(null)
 
-        fun getVar(name: String): Int? = if (current.containsKey(name)) current[name] else outer?.getVar(name)
-        fun addValue(name: String, value: Int) {
-            current[name] = value
-        }
+    private var functionParams = ArrayList<Pair<String, Int>>()
 
-        fun setValue(name: String, value: Int) {
-            if (current.containsKey(name)) {
-                current[name] = value
-            } else if (outer != null) {
-                outer!!.setValue(name, value)
-            } else {
-                throw RuntimeException("Undefined name ${name}")
-            }
-        }
-    }
-
-    private var scope: Scope = Scope(null)
-
+    private var inReturn = false
     override fun visitFile(ctx: ExpParser.FileContext): Int? {
-        scope = Scope(null)
+        varScope = Scope(null)
         return visitBlock(ctx.block())
     }
 
     override fun visitBlock(ctx: ExpParser.BlockContext): Int? {
-        var result: Int? = 0
         for (statement in ctx.statement()) {
-            result = visitStatement(statement)
+            val result = visit(statement.getChild(0))
+            if (inReturn || statement.getChild(0) is ExpParser.Return_Context) {
+                inReturn = true
+                if (ctx.parent is ExpParser.FunctionContext)
+                    inReturn = false
+                return result
+            }
         }
-        return result
+        return null
     }
 
     override fun visitBlockWithBraces(ctx: ExpParser.BlockWithBracesContext): Int? {
-        scope = Scope(scope)
+        varScope = Scope(varScope)
+        funScope = Scope(funScope)
+        for (p in functionParams) {
+            varScope.addValue(p.first, p.second)
+        }
+        functionParams.clear()
         val result = visitBlock(ctx.block())
-        scope = scope.outer!!
-        // copy change
+        varScope = varScope.outer!!
+        funScope = funScope.outer!!
         return result
     }
 
+
     override fun visitStatement(ctx: ExpParser.StatementContext): Int? {
-        val statement = ctx.getChild(0)
-        return when (statement) {
-            is ExpParser.FunctionContext -> visitFunction(statement)
-            is ExpParser.VariableContext -> visitVariable(statement)
-            is ExpParser.ExpressionContext -> visitExpression(statement)
-            is ExpParser.While_Context -> visitWhile_(statement)
-            is ExpParser.If_Context -> visitIf_(statement)
-            is ExpParser.AssignmentContext -> visitAssignment(statement)
-            is ExpParser.Return_Context -> visitReturn_(statement)
-            else -> throw RuntimeException("Undefined command")
-        }
+        return visit(ctx.getChild(0))
     }
 
 
-    override fun visitFunction(ctx: ExpParser.FunctionContext?): Int {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun visitVariable(ctx: ExpParser.VariableContext): Int {
+    override fun visitFunction(ctx: ExpParser.FunctionContext): Int? {
         val name = ctx.Identifier().toString()
-        val previous = scope.getVar(name)
+        val previous = funScope.getValue(name)
         if (previous != null) {
             throw RuntimeException("Error: name ${name} was previosly declared.")
         }
-        scope.addValue(ctx.Identifier().toString(), visitExpression(ctx.expression()))
-        return 0
+
+        val params = ArrayList<String>()
+        val paramIdentifiers = ctx.parameterNames().children
+        paramIdentifiers?.forEach { param -> params.add(param.text) }
+//        if (paramIdentifiers != null) {
+//            for (param in paramIdentifiers) {
+//                params.add(param.text)
+//            }
+//        }
+        funScope.addValue(name, Pair(ctx.blockWithBraces(), params))
+        return null
     }
 
-    override fun visitParameterNames(ctx: ExpParser.ParameterNamesContext?): Int {
-        visit()
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    override fun visitVariable(ctx: ExpParser.VariableContext): Int? {
+        val name = ctx.Identifier().toString()
+        val previous = varScope.getValue(name)
+        if (previous != null) {
+            throw RuntimeException("Error: name ${name} was previosly declared.")
+        }
+        varScope.addValue(name, visitExpression(ctx.expression()))
+        return null
     }
 
-    override fun visitWhile_(ctx: ExpParser.While_Context): Int {
+    override fun visitWhile_(ctx: ExpParser.While_Context): Int? {
         var expr = visit(ctx.expression())
         while (expr != 0) {
             visitBlockWithBraces(ctx.blockWithBraces())
             expr = visit(ctx.expression())
         }
-        return 0
+        return null
     }
 
     override fun visitIf_(ctx: ExpParser.If_Context): Int? {
@@ -99,11 +96,11 @@ class Interpreter : ExpBaseVisitor<Int?>() {
         } else if (ctx.Else() != null) {
             return visitBlockWithBraces(ctx.blockWithBraces()[1])
         }
-        return 0
+        return null
     }
 
     override fun visitAssignment(ctx: ExpParser.AssignmentContext): Int? {
-        scope.setValue(getName(ctx.Identifier()), visitExpression(ctx.expression()))
+        varScope.setValue(getName(ctx.Identifier()), visitExpression(ctx.expression()))
         return null
     }
 
@@ -116,17 +113,31 @@ class Interpreter : ExpBaseVisitor<Int?>() {
     }
 
     override fun visitExpression(ctx: ExpParser.ExpressionContext): Int {
-        val expr = ctx.getChild(0)
-        return when (expr) {
-            is ExpParser.FunctionCallContext -> visitFunctionCall(expr)
-            is ExpParser.BinaryExpressionContext -> visitBinaryExpression(expr)
-            is TerminalNode -> 3
-            else -> visitExpression(ctx.getChild(1) as ExpParser.ExpressionContext)
-        }
+        return visit(ctx.functionCall() ?: ctx.expression() ?: ctx.getChild(0))!!
     }
 
     override fun visitFunctionCall(ctx: ExpParser.FunctionCallContext): Int {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        val name = ctx.Identifier().text
+
+        if (name == "println") {
+            return doPrintln(ctx.arguments())
+        }
+
+        val func = funScope.getValue(name)
+        if (func == null) {
+            throw RuntimeException("Undefined functionParams: ${func}")
+        }
+        func.second.forEach { param: String -> functionParams.add(Pair(param, 0)) }
+        visit(ctx.arguments())
+        return visit(func.first) ?: 0
+    }
+
+    private fun doPrintln(arguments: ExpParser.ArgumentsContext): Int {
+        for (i in arguments.children.indices.step(2)) {
+            print(visit(arguments.getChild(i)))
+        }
+        println()
+        return 0
     }
 
     override fun visitBinaryExpression(ctx: ExpParser.BinaryExpressionContext): Int {
@@ -134,25 +145,27 @@ class Interpreter : ExpBaseVisitor<Int?>() {
     }
 
     override fun visitLogicalExp(ctx: ExpParser.LogicalExpContext): Int {
-        var result = visitComparisonExp(ctx.getChild(0) as ExpParser.ComparisonExpContext).toBool()
-        val oparator = ctx.getChild(1)
-        for (i in 3..ctx.childCount step 2) {
-            val current = visitComparisonExp(ctx.getChild(i) as ExpParser.ComparisonExpContext).toBool()
-            when (oparator.text) {
+        val left = visit(ctx.getChild(0))!!
+        var result = left.toBool()
+
+        for (i in 2..ctx.childCount step 2) {
+            val operator = ctx.getChild(i - 1)
+            val current = visit(ctx.getChild(i)).toBool()
+            when (operator.text) {
                 "&&" -> result = result && current
                 "||" -> result = result || current
             }
         }
-        return result.toInt()
+        return if (ctx.childCount != 1) result.toInt() else left
     }
 
     override fun visitComparisonExp(ctx: ExpParser.ComparisonExpContext): Int {
-        var left = visitAdditionExp(ctx.getChild(0) as ExpParser.AdditionExpContext)
-        val oparator = ctx.getChild(1)
+        val left = visit(ctx.getChild(0))!!
+        val operator = ctx.getChild(1)
         var result: Boolean? = null
-        if (oparator != null) {
-            val right = visitAdditionExp(ctx.getChild(2) as ExpParser.AdditionExpContext)
-            when (oparator.text) {
+        if (operator != null) {
+            val right = visit(ctx.getChild(2))!!
+            when (operator.text) {
                 "!=" -> result = left != right
                 "==" -> result = left == right
                 "<=" -> result = left <= right
@@ -165,24 +178,45 @@ class Interpreter : ExpBaseVisitor<Int?>() {
     }
 
     override fun visitAdditionExp(ctx: ExpParser.AdditionExpContext): Int {
-        var result = visitMultiplyExp(ctx.getChild(0) as ExpParser.MultiplyExpContext)
-        val oparator = ctx.getChild(1)
-        for (i in 3..ctx.childCount step 2) {
-            val current = visitMultiplyExp(ctx.getChild(i) as ExpParser.MultiplyExpContext)
-            when (oparator.text) {
+        return visitBaseArithmeticOperations(ctx)
+    }
+
+    override fun visitMultiplyExp(ctx: ExpParser.MultiplyExpContext): Int {
+        return visitBaseArithmeticOperations(ctx)
+    }
+
+    private fun visitBaseArithmeticOperations(ctx: ParserRuleContext): Int {
+        var result = visit(ctx.getChild(0))!!
+        for (i in 2..ctx.childCount step 2) {
+            val operator = ctx.getChild(i - 1)
+            val current = visit(ctx.getChild(i))!!
+            when (operator.text) {
                 "+" -> result += current
                 "-" -> result -= current
+
+                "*" -> result *= current
+                "/" -> result /= current
+                "%" -> result %= current
             }
         }
         return result
     }
 
-    override fun visitMultiplyExp(ctx: ExpParser.MultiplyExpContext): Int {
-        return visitBaseArithmeticExpression()
+    override fun visitAtomExp(ctx: ExpParser.AtomExpContext): Int {
+        return visit(ctx.functionCall() ?: ctx.expression() ?: ctx.getChild(0))!!
+    }
+
+    override fun visitTerminal(node: TerminalNode): Int {
+        return node.text.toIntOrNull() ?: varScope.getValue(node.text)
+        ?: throw RuntimeException("Undefined variable ${node.text}")
     }
 
     override fun visitArguments(ctx: ExpParser.ArgumentsContext): Int? {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        if (ctx.childCount != functionParams.size)
+            throw RuntimeException("Invalid number of arguments.")
+        for (i in functionParams.indices.step(2))
+            functionParams[i] = functionParams[i].copy(second = visit(ctx.getChild(i))!!)
+        return null
     }
 
 }

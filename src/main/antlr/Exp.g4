@@ -1,14 +1,7 @@
 grammar Exp;
 
-//
-//eval returns [double value]
-//    :    exp=additionExp {$value = $exp.value;}
-//    ;
-options {
-    output=AST;
-}
 
-file: block;
+file: block EOF;
 
 block: (statement)*;
 
@@ -38,11 +31,11 @@ assignment: Identifier Equals expression;
 return_: Return expression;
 
 expression
-    //:   functionCall
-    :   binaryExpression;
-    //|   Identifier
-    //|   Number
-    //|   LeftParen expression RightParen;
+    :   binaryExpression
+    |   functionCall
+    |   Number
+    |   Identifier
+    |   LeftParen expression RightParen;
 
 functionCall: Identifier LeftParen arguments RightParen;
 
@@ -50,29 +43,21 @@ arguments: (expression (Comma expression)*)?;
 
 binaryExpression: logicalExp;
 
-logicalExp
-    :   comparisonExp (Or comparisonExp)*
-    |   comparisonExp (And comparisonExp)*;
+logicalExp: comparisonExp ((Or | And) comparisonExp)*;
 
-comparisonExp
-    :   additionExp (NotEquals additionExp)*
-    |   additionExp (IsEqual additionExp)*
-    |   additionExp (LessEqual additionExp)*
-    |   additionExp (GreaterEqual additionExp)*
-    |   additionExp (Less additionExp)*
-    |   additionExp (Greater additionExp)*;
+comparisonExp: additionExp ((NotEquals
+                           | IsEqual
+                           | LessEqual
+                           | GreaterEqual
+                           | Less
+                           | Greater) additionExp)?;
 
 
-additionExp
-    :   multiplyExp (Plus multiplyExp)*
-    |   multiplyExp (Minus multiplyExp)*;
+additionExp: multiplyExp ((Plus | Minus) multiplyExp)*;
 
-multiplyExp
-    :   atomExp (Mult atomExp)*
-    //|   atomExp (Div atomExp)*
-    |   atomExp (Mod expression)*;
+multiplyExp: atomExp ((Mult | Div | Mod) atomExp)*;
 
-atomExp: Number | Identifier | LeftParen expression RightParen | functionCall;
+atomExp: functionCall | Number | Identifier | LeftParen expression RightParen;
 
 //////////////////////////////////////////////////////////////////////
 
@@ -112,4 +97,4 @@ Identifier:   [a-zA-Z_0-9]+;
 
 Comma : ',';
 
-WS : (' ' | '\t' | '\r'| '\n') -> skip;
+WS : (' ' | '\t' | '\r'| '\n' | '//' .*? '\n'?) -> skip;

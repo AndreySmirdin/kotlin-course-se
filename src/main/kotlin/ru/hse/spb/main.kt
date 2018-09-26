@@ -6,9 +6,8 @@ import ru.hse.spb.parser.ExpLexer
 import ru.hse.spb.parser.ExpParser
 
 fun main(args: Array<String>) {
-    val expLexer = ExpLexer(CharStreams.fromString("1 < 2"))
+    val expLexer = ExpLexer(CharStreams.fromString("println(2+3)"))
     val parser = ExpParser(BufferedTokenStream(expLexer))
-    println(parser)
     val visitor = Interpreter().visitFile(parser.file())
 }
 

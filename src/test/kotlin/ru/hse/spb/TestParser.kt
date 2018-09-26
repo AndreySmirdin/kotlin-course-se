@@ -29,7 +29,7 @@ class TestParser {
     @Test
     fun testWhile() {
         parseProgram("while (1) {}")
-        parseProgram("while (func() < (a + 3) {}")
+        parseProgram("while (func() < (a + 3)) {}")
         parseProgram("while (0) { var a = 7 }")
     }
 
@@ -75,6 +75,7 @@ class TestParser {
 
     @Test
     fun testBinaryExpressionComplex() {
+        parseProgram("a + a - a")
         parseProgram("2 + 3 * 6 < 3 && 2 || 7")
     }
 }
