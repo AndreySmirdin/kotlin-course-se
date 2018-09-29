@@ -5,6 +5,10 @@ import org.junit.Test
 class TestParserWithErrors {
 
     @Test
+    fun testFile() {
+        parseProgram("{}", 1, 0)
+    }
+    @Test
     fun testFunction() {
         parseProgram("fun foo {}", 1, 8)
         parseProgram("fun foo(arg1 arg2)", 1, 13)

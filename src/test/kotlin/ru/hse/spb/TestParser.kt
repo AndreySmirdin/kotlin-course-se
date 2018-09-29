@@ -7,7 +7,6 @@ class TestParser {
     @Test
     fun testFile() {
         parseProgram("")
-        parseProgram("{}")
     }
 
     @Test
@@ -46,7 +45,7 @@ class TestParser {
     fun testFunctionCall() {
         parseProgram("call()")
         parseProgram("call(arg1, arg2)")
-    };
+    }
 
     @Test
     fun testAssignment() {

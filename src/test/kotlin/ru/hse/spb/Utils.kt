@@ -15,8 +15,7 @@ fun parseProgram(s: String, errorLine: Int = -1, errorPosition: Int = -1) {
     val output = ByteArrayOutputStream()
     System.setErr(PrintStream(output))
     val expLexer = ExpLexer(CharStreams.fromString(s))
-    val parser = ExpParser(BufferedTokenStream(expLexer))
-    parser.file();
+    ExpParser(BufferedTokenStream(expLexer)).file()
     val errors = output.toString()
 
     if (errors.isEmpty()) {
