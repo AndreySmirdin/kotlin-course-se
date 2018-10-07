@@ -1,96 +1,135 @@
 package ru.hse.spb
 
+import java.io.OutputStream
 
-abstract class Tag(val name: String) : TexElement {
-    val children = arrayListOf<TexElement>()
-    val attributes = hashMapOf<String, String>()
+const val TAB = "    "
 
-    protected fun <T : TexElement> initTag(tag: T, init: T.() -> Unit): T {
+@DslMarker
+annotation class TexElementMarker
+
+
+@TexElementMarker
+abstract class Tag(val name: String, vararg params: Pair<String, String>) : Renderable {
+
+    val children = arrayListOf<Renderable>()
+    val args = params
+
+    protected fun <T : Renderable> initTag(tag: T, init: T.() -> Unit) {
         tag.init()
         children.add(tag)
-        return tag
     }
 
     override fun render(builder: StringBuilder, indent: String) {
-        builder.append("$indent<$name${renderAttributes()}>\n")
-        for (c in children) {
-            c.render(builder, indent + "  ")
-        }
-        builder.append("$indent</$name>\n")
+        builder.append("$indent\\begin{$name}")
+        renderArgs(builder)
+        renderChildren(builder, indent)
+        builder.appendln("$indent\\end{$name}")
     }
 
-    private fun renderAttributes(): String {
-        val builder = StringBuilder()
-        for ((attr, value) in attributes) {
-            builder.append(" $attr=\"$value\"")
-        }
-        return builder.toString()
+    protected fun renderArgs(builder: StringBuilder) {
+        args.forEach { builder.append("[${it.first}=${it.second}]") }
+        builder.appendln()
     }
+
+    protected fun renderChildren(builder: StringBuilder, indent: String) {
+        children.forEach { it.render(builder, "$indent$TAB") }
+    }
+
 
     override fun toString(): String {
         val builder = StringBuilder()
         render(builder, "")
         return builder.toString()
     }
-}
 
-abstract class TagWithText(name: String) : Tag(name) {
     operator fun String.unaryPlus() {
+        children.add(TextElement(this))
+    }
 
+    fun toOutputStream(stream: OutputStream) {
+        stream.write(toString().toByteArray())
     }
 }
 
-class Document : TagWithText("html") {
-    fun documentClass(name: String) = TODO()
-
-    fun usepackage(vararg strings: String) = TODO()
-
-    fun frame(init: Body.() -> Unit) = initTag(Body(), init)
-
-    fun itemize(init: Itemize.() -> Unit) = initTag(Body(), init)
-
-    fun enumerate(init: Body.() -> Unit) = initTag(Body(), init)
-
-    fun math(init: Body.() -> Unit) = initTag(Body(), init)
-
-    fun alignment(init: Body.() -> Unit) = initTag(Body(), init)
-}
-
-class Head : TagWithText("head") {
-    fun title(init: Title.() -> Unit) = initTag(Title(), init)
-}
-
-class Itemize : TagWithText("head") {
-
-}
-
-class Title : TagWithText("title")
-
-abstract class BodyTag(name: String) : TagWithText(name) {
-    fun b(init: B.() -> Unit) = initTag(B(), init)
-    fun p(init: P.() -> Unit) = initTag(P(), init)
-    fun h1(init: H1.() -> Unit) = initTag(H1(), init)
-    fun a(href: String, init: A.() -> Unit) {
-        val a = initTag(A(), init)
-        a.href = href
+class TextElement(val text: String) : Renderable {
+    override fun render(builder: StringBuilder, indent: String) {
+        builder.append("$indent$text\n")
     }
 }
 
-class Body : BodyTag("body")
-class B : BodyTag("b")
-class P : BodyTag("p")
-class H1 : BodyTag("h1")
+abstract class TexTag(name: String, vararg params: Pair<String, String>) : Tag(name, *params) {
+    fun frame(frameTitle: String, init: Frame.() -> Unit) = initTag(Frame(frameTitle), init)
 
-class A : BodyTag("a") {
-    var href: String
-        get() = attributes["href"]!!
-        set(value) {
-            attributes["href"] = value
+    fun itemize(init: Itemize.() -> Unit) = initTag(Itemize(), init)
+
+    fun enumerate(init: Enumerate.() -> Unit) = initTag(Enumerate(), init)
+
+    fun math(expression: String) = children.add(Math(expression))
+
+    fun alignment(type: Alignment, init: CustomTag.() -> Unit) =
+            initTag(CustomTag(type.toString().toLowerCase()), init)
+
+    fun customTag(name: String, vararg arg: Pair<String, String>, init: CustomTag.() -> Unit) =
+            initTag(CustomTag(name, *arg), init)
+}
+
+class CustomTag(name: String, vararg args: Pair<String, String>) : TexTag(name, *args)
+
+enum class Alignment {
+    FLUSHLEFT,
+    FLUSHRIGHT,
+    CENTER;
+}
+
+
+class Document : TexTag("document") {
+    private var docClass: String? = null
+
+    private var usedPackages = ArrayList<String>()
+    fun documentClass(clazz: String) {
+        docClass = clazz
+    }
+
+    fun usepackage(vararg packages: String) {
+        usedPackages.addAll(packages)
+    }
+
+    override fun render(builder: StringBuilder, indent: String) {
+        if (docClass != null) {
+            builder.appendln("$indent\\documentclass{$docClass}")
         }
+        usedPackages.forEach { builder.appendln("\\usepackage{$it}") }
+        super.render(builder, indent)
+    }
 }
 
-fun html(init: HTML.() -> Unit): HTML {
-    val html = HTML()
-    html.init()
-    return html
+class Frame(val frameTitle: String) : TexTag("frame") {
+    override fun render(builder: StringBuilder, indent: String) {
+        builder.appendln("$indent\\begin{$name}")
+                .appendln("$indent$TAB\\frametitle{$frameTitle}")
+
+        renderChildren(builder, indent)
+        builder.appendln("$indent\\end{$name}")
+    }
+}
+
+abstract class Itemable(name: String) : TexTag(name) {
+    fun item(init: Item.() -> Unit) = initTag(Item(), init)
+}
+
+class Itemize() : Itemable("itemize")
+class Enumerate() : Itemable("enumerate")
+
+class Item() : TexTag("item")
+
+class Math(private val expression: String) : Renderable {
+    override fun render(builder: StringBuilder, indent: String) {
+        builder.appendln("$indent $ $expression $")
+    }
+}
+
+fun document(init: Document.() -> Unit): Document {
+    val document = Document()
+    document.init()
+    return document
 }

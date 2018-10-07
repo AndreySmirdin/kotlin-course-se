@@ -1,5 +1,5 @@
 package ru.hse.spb
 
-interface TexElementElement {
+interface Renderable {
     fun render(builder: StringBuilder, indent: String)
 }
