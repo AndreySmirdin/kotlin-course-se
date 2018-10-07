@@ -4,6 +4,10 @@ import java.io.OutputStream
 
 const val TAB = "    "
 
+interface Renderable {
+    fun render(builder: StringBuilder, indent: String)
+}
+
 @DslMarker
 annotation class TexElementMarker
 

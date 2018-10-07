@@ -1,9 +1,8 @@
 package ru.hse.spb
 
 fun main(args: Array<String>) {
-    println(document {
+    compile("123", document {
         usepackage("lol")
-
         math("1 + 2")
         itemize {
             item {
@@ -15,5 +14,5 @@ fun main(args: Array<String>) {
         alignment(Alignment.CENTER) {
 
         }
-    }.toString())
+    })
 }
