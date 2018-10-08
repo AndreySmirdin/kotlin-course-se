@@ -16,7 +16,7 @@ annotation class TexElementMarker
 abstract class Tag(val name: String, vararg params: Pair<String, String>) : Renderable {
 
     val children = arrayListOf<Renderable>()
-    val args = params
+    private val args = params
 
     protected fun <T : Renderable> initTag(tag: T, init: T.() -> Unit) {
         tag.init()
@@ -30,7 +30,7 @@ abstract class Tag(val name: String, vararg params: Pair<String, String>) : Rend
         builder.appendln("$indent\\end{$name}")
     }
 
-    protected fun renderArgs(builder: StringBuilder) {
+    private fun renderArgs(builder: StringBuilder) {
         args.forEach { builder.append("[${it.first}=${it.second}]") }
         builder.appendln()
     }
@@ -55,7 +55,7 @@ abstract class Tag(val name: String, vararg params: Pair<String, String>) : Rend
     }
 }
 
-class TextElement(val text: String) : Renderable {
+class TextElement(private val text: String) : Renderable {
     override fun render(builder: StringBuilder, indent: String) {
         builder.append("$indent$text\n")
     }
@@ -107,7 +107,7 @@ class Document : TexTag("document") {
     }
 }
 
-class Frame(val frameTitle: String) : TexTag("frame") {
+class Frame(private val frameTitle: String) : TexTag("frame") {
     override fun render(builder: StringBuilder, indent: String) {
         builder.appendln("$indent\\begin{$name}")
                 .appendln("$indent$TAB\\frametitle{$frameTitle}")
@@ -121,10 +121,10 @@ abstract class Itemable(name: String) : TexTag(name) {
     fun item(init: Item.() -> Unit) = initTag(Item(), init)
 }
 
-class Itemize() : Itemable("itemize")
-class Enumerate() : Itemable("enumerate")
+class Itemize : Itemable("itemize")
+class Enumerate : Itemable("enumerate")
 
-class Item() : TexTag("item")
+class Item : TexTag("item")
 
 class Math(private val expression: String) : Renderable {
     override fun render(builder: StringBuilder, indent: String) {

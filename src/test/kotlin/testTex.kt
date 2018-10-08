@@ -219,26 +219,30 @@ class TestTex {
 
                         }
                     }
-                }
+                }.toString()
         val expected = """
-            |\documentClass{beamer}
+            |\documentclass{beamer}
             |\usepackage{babel}
             |\usepackage{russian}
             |\begin{document}
-            |    \frametitle{frametitle}
-            |    \begin{itemize}
-            |       \begin{item}
-            |           \begin{center}
-            |               $ 1+1 $
-            |           \end{center}
-            |       \end{item}
-            |       \begin{item}
-            |           \begin{center}
-            |               $ 2+2 $
-            |           \end{center}
-            |       \end{item}
-            |    \end{itemize}
+            |    \begin{frame}
+            |        \frametitle{frametitle}
+            |        \begin{itemize}
+            |            \begin{item}
+            |                \begin{center}
+            |                     $ 1+1 $
+            |                \end{center}
+            |            \end{item}
+            |            \begin{item}
+            |                \begin{center}
+            |                     $ 2+2 $
+            |                \end{center}
+            |            \end{item}
+            |        \end{itemize}
+            |    \end{frame}
             |\end{document}
+            |
         """.trimMargin()
+        assertThat(result, `is`(expected))
     }
 }
