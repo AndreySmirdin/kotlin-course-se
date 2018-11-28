@@ -13,10 +13,9 @@ annotation class TexElementMarker
 
 
 @TexElementMarker
-abstract class Tag(val name: String, vararg params: Pair<String, String>) : Renderable {
+abstract class Tag(val name: String, vararg val args: Pair<String, String>) : Renderable {
 
     val children = arrayListOf<Renderable>()
-    private val args = params
 
     protected fun <T : Renderable> initTag(tag: T, init: T.() -> Unit) {
         tag.init()
@@ -40,14 +39,10 @@ abstract class Tag(val name: String, vararg params: Pair<String, String>) : Rend
     }
 
 
-    override fun toString(): String {
-        val builder = StringBuilder()
-        render(builder, "")
-        return builder.toString()
-    }
+    override fun toString(): String = buildString { render(this@buildString, "") }
 
     operator fun String.unaryPlus() {
-        children.add(TextElement(this))
+        children += TextElement(this)
     }
 
     fun toOutputStream(stream: OutputStream) {
@@ -132,8 +127,4 @@ class Math(private val expression: String) : Renderable {
     }
 }
 
-fun document(init: Document.() -> Unit): Document {
-    val document = Document()
-    document.init()
-    return document
-}
+fun document(init: Document.() -> Unit): Document = Document().apply(init)
